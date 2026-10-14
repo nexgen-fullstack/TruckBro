@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.TruckBro" parent="android:Theme.Material.NoActionBar">
+        <item name="android:statusBarColor">#FF111315</item>
+        <item name="android:navigationBarColor">#FF111315</item>
+        <item name="android:windowBackground">@color/bg</item>
+    </style>
+    <color name="bg">#FF111315</color>
+    <color name="ic_bg">#FF1A2330</color>
+</resources>

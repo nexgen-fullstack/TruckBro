@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Пікап із мигалкою: синій і червоний вогні над кабіною. Безпечна зона — центральні 66dp із 108dp. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <path android:fillColor="#FF1E64FF" android:pathData="M44,34 h9 v6 h-9 z" />
+    <path android:fillColor="#FFE53935" android:pathData="M55,34 h9 v6 h-9 z" />
+    <path android:fillColor="#FFFFFFFF"
+        android:pathData="M30,62 L30,54 L44,54 L48,44 L64,44 L70,54 L78,56 L78,62 Z" />
+    <path android:fillColor="#FF1A2330" android:pathData="M50,47 h6 v6 h-8 z M58,47 h5 l3,6 h-8 z" />
+    <path android:fillColor="#FFFFB300" android:pathData="M30,64 h48 v3 h-48 z" />
+    <path android:fillColor="#FFFFFFFF"
+        android:pathData="M38,68 m-5,0 a5,5 0 1,0 10,0 a5,5 0 1,0 -10,0 M70,68 m-5,0 a5,5 0 1,0 10,0 a5,5 0 1,0 -10,0" />
+</vector>

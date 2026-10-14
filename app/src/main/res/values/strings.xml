@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">TruckBro</string>
+    <string name="a11y_label">TruckBro — попередження з Waze</string>
+    <string name="a11y_description">TruckBro читає попередження на екрані Waze (поліція, аварії, перешкоди) і повідомляє про них голосом і мигалкою поверх YouTube чи інших програм. Програма нічого не натискає і нікуди не надсилає вміст екрана.</string>
+</resources>
