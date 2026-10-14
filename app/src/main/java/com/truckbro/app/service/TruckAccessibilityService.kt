@@ -166,7 +166,10 @@ class TruckAccessibilityService : AccessibilityService(), LocationListener {
         for ((pkg, items) in captured) {
             val isDemo = pkg == packageName
             if (isDemo && items.none { it.text == DEMO_NAV_MARKER }) continue
-            if (!isDemo) { lastWazeVisible = now; DriveState._wazeSeenAt.value = now }
+            if (!isDemo) {
+                lastWazeVisible = now; DriveState._wazeSeenAt.value = now
+                com.truckbro.app.road.WeighStatusParser.parse(items.map { it.text })?.let { onWazeWeighStatus(it) }
+            }
             val sightings = HazardParser.parse(items.filter { it.text != DEMO_NAV_MARKER })
             if (com.truckbro.app.BuildConfig.DEBUG && isDemo) Log.d(TAG, "scan ${items.map { it.text }} -> $sightings")
             if (sightings.isEmpty()) continue
@@ -346,6 +349,8 @@ class TruckAccessibilityService : AccessibilityService(), LocationListener {
     private fun announceWeigh(a: StationAhead, miles: Int) {
         val st = MapData.status(a.station.id)
         if (prefs.voiceOn) speaker.speak(Phrases.weighAhead(miles, st, lang), lang)
+        val statusShort = when (st) { WeighStatus.OPEN -> "ВІДКРИТІ"; WeighStatus.CLOSED -> "ЗАКРИТІ"; else -> "статус?" }
+        lights.showWeighLights("$miles mi · $statusShort", flashStyle())
         Journal.add(this, "weigh", "${a.station.name}: ${"%.1f".format(a.meters / METERS_PER_MILE)} mi, ${st.name}")
         if (engine == null && pendingAsk == null) showWeighCard(a, st)
     }
@@ -366,6 +371,19 @@ class TruckAccessibilityService : AccessibilityService(), LocationListener {
         ))
         handler.removeCallbacks(hideCard)
         handler.postDelayed(hideCard, 30_000)
+    }
+
+    /** Waze сам написав, що ваги відкриті / закриті — ставимо статус найближчій станції попереду. */
+    private fun onWazeWeighStatus(st: WeighStatus) {
+        val here = DriveState.here.value ?: return
+        val heading = DriveState.heading.value ?: return
+        val a = weighWatcher.ahead(MapData.weigh.value, here, heading) ?: return
+        if (MapData.status(a.station.id) == st) return
+        MapData.setStatus(this, a.station.id, st)
+        Journal.add(this, "weigh", "Статус з Waze: ${st.name}")
+        if (prefs.voiceOn) speaker.speak(Phrases.weighAhead((a.meters / METERS_PER_MILE).roundToInt().coerceAtLeast(1), st, lang), lang)
+        lights.showWeighLights(if (st == WeighStatus.OPEN) "ВІДКРИТІ" else "ЗАКРИТІ", flashStyle())
+        maybePlanWeigh(a, here, heading)
     }
 
     /** Водій натиснув «Відкриті» / «Закриті» на картці. */
@@ -610,6 +628,7 @@ class TruckAccessibilityService : AccessibilityService(), LocationListener {
         DriveState._here.value = start; DriveState._heading.value = 0.0
         val miles = GeoMath.distance(start, station.pos) / METERS_PER_MILE
         if (prefs.voiceOn) speaker.speak(Phrases.weighAhead(miles.roundToInt(), WeighStatus.OPEN, lang), lang)
+        lights.showWeighLights("${"%.1f".format(miles)} mi · ВІДКРИТІ", flashStyle())
         card.show(CardContent("⚖ Ваги через ${"%.1f".format(miles)} mi (тест)", "${station.name}\nВІДКРИТІ · рахую об'їзд…",
             CardOverlay.RED, listOf(CardButton("✕", CardOverlay.GREY) { cancelNav(false); card.hide(); simJob?.cancel(); simJob = null; demo = false })))
         simJob = scope.launch {

@@ -67,7 +67,7 @@ object WeighParser {
 }
 
 /**
- * Вирішує, яка станція «попереду» і коли про неї говорити: за 10, 5 і 1 милю.
+ * Вирішує, яка станція «попереду» і коли про неї говорити: за 15, 10, 5, 2 і 1 милю.
  * Станції часто парні — по одній на кожен бік автомагістралі. У США їдуть праворуч,
  * тож із пари беремо ту, що правіше від напрямку руху.
  */
@@ -92,7 +92,7 @@ class WeighWatcher {
         return cands.filter { GeoMath.distance(it.station.pos, first.station.pos) < 800 }.maxByOrNull { it.rightOffset }
     }
 
-    /** Повертає поріг (10/5/1 миля), який щойно перетнули, або null. */
+    /** Повертає поріг (15/10/5/2/1 миля), який щойно перетнули, або null. */
     fun step(a: StationAhead?): Int? {
         if (a == null) return null
         val id = a.station.id
@@ -108,7 +108,26 @@ class WeighWatcher {
     fun forget(id: String) { fired.remove(id); if (current == id) current = null }
 
     companion object {
-        val THRESHOLDS = listOf(10, 5, 1)
-        const val MAX_AHEAD = 10.5 * METERS_PER_MILE
+        val THRESHOLDS = listOf(15, 10, 5, 2, 1)
+        const val MAX_AHEAD = 15.5 * METERS_PER_MILE
+    }
+}
+
+/**
+ * Якщо Waze (або інша навігація) сам пише на екрані, що ваги відкриті чи закриті, беремо це звідти.
+ * Зазвичай Waze цього НЕ показує, тоді статус лишається з кнопки водія.
+ */
+object WeighStatusParser {
+    private val STATION = Regex("weigh ?station|\\bscales?\\b|port of entry|inspection station|ваги|зважуван", RegexOption.IGNORE_CASE)
+    private val OPEN = Regex("\\bopen(ed)?\\b|відкрит", RegexOption.IGNORE_CASE)
+    private val CLOSED = Regex("\\bclosed\\b|закрит", RegexOption.IGNORE_CASE)
+
+    fun parse(texts: List<String>): WeighStatus? {
+        for (t in texts) {
+            if (t.length > 160 || !STATION.containsMatchIn(t)) continue
+            if (CLOSED.containsMatchIn(t)) return WeighStatus.CLOSED
+            if (OPEN.containsMatchIn(t)) return WeighStatus.OPEN
+        }
+        return null
     }
 }

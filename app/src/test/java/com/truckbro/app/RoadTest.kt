@@ -18,6 +18,8 @@ import com.truckbro.app.road.TruckStop
 import com.truckbro.app.road.TruckStopParser
 import com.truckbro.app.road.WeighParser
 import com.truckbro.app.road.WeighStation
+import com.truckbro.app.road.WeighStatus
+import com.truckbro.app.road.WeighStatusParser
 import com.truckbro.app.road.WeighWatcher
 import com.truckbro.app.road.Zone
 import org.junit.Assert.assertEquals
@@ -76,6 +78,12 @@ class RoadTest {
         assertEquals(1, w.step(w.ahead(listOf(east, west), here1, 0.0)))
         // Їдемо на південь — станції позаду.
         assertNull(w.ahead(listOf(east, west), here1, 180.0))
+    }
+
+    @Test fun weighStatusFromScreenText() {
+        assertEquals(WeighStatus.OPEN, WeighStatusParser.parse(listOf("Weigh station open", "I-57 N")))
+        assertEquals(WeighStatus.CLOSED, WeighStatusParser.parse(listOf("Scales closed")))
+        assertNull(WeighStatusParser.parse(listOf("Lane closed", "Store open now")))
     }
 
     /** Пряма лінія на північ із точками кожні ~110 м. */

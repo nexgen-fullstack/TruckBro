@@ -42,6 +42,17 @@ class AlertOverlay(private val ctx: Context) {
         handler.postDelayed(hideLights, style.seconds * 1000L + 3_000L)
     }
 
+    /** Ваги попереду — фіолетово-жовта мигалка. */
+    fun showWeighLights(subtitle: String, style: FlashStyle) {
+        val v = lights ?: LightsView(ctx).also {
+            runCatching { wm.addView(it, params()) }.onFailure { return }
+            lights = it
+        }
+        v.start(HazardType.HAZARD, subtitle, style, weigh = true)
+        handler.removeCallbacks(hideLights)
+        handler.postDelayed(hideLights, style.seconds * 1000L + 3_000L)
+    }
+
     private fun removeLights() {
         lights?.let { it.stop(); runCatching { wm.removeView(it) } }
         lights = null
@@ -70,6 +81,7 @@ class AlertOverlay(private val ctx: Context) {
         private val density = ctx.resources.displayMetrics.density
         private var type = HazardType.POLICE
         private var subtitle = ""
+        private var weigh = false
         private var style = FlashStyle(0.3f, 5, 2.5f)
         private var phases = 12
         private var phase = -1 // -1 — миготіння закінчилось, лишилась тільки рамка й плашка
@@ -82,8 +94,9 @@ class AlertOverlay(private val ctx: Context) {
         private val subPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { textSize = 17 * density }
         private val rect = RectF()
 
-        fun start(t: HazardType, sub: String, s: FlashStyle) {
+        fun start(t: HazardType, sub: String, s: FlashStyle, weigh: Boolean = false) {
             stop()
+            this.weigh = weigh
             type = t; subtitle = sub; style = s
             // Не частіше 3 перемикань на секунду — безпечно для очей.
             val stepMs = (1000f / s.rate.coerceIn(1f, 3f)).toLong()
@@ -107,7 +120,22 @@ class AlertOverlay(private val ctx: Context) {
             val flashing = phase in 0 until phases
             val swap = flashing && phase % 2 == 1
             val a = (style.opacity.coerceIn(0.05f, 0.7f) * 255).toInt()
-            if (type.police) {
+            if (weigh) {
+                // Ваги: рамка зліва фіолетова, справа жовта, половини екрана навпаки; кольори міняються місцями.
+                val leftFrame = if (swap) AMBER else PURPLE
+                val rightFrame = if (swap) PURPLE else AMBER
+                if (flashing) {
+                    paint.color = rightFrame; paint.alpha = a; canvas.drawRect(0f, 0f, w / 2, h, paint)
+                    paint.color = leftFrame; paint.alpha = a; canvas.drawRect(w / 2, 0f, w, h, paint)
+                }
+                paint.alpha = 255
+                paint.color = leftFrame
+                canvas.drawRect(0f, 0f, stroke, h, paint); canvas.drawRect(0f, 0f, w / 2, stroke, paint)
+                canvas.drawRect(0f, h - stroke, w / 2, h, paint)
+                paint.color = rightFrame
+                canvas.drawRect(w - stroke, 0f, w, h, paint); canvas.drawRect(w / 2, 0f, w, stroke, paint)
+                canvas.drawRect(w / 2, h - stroke, w, h, paint)
+            } else if (type.police) {
                 // Рамка: зліва синя, справа червона. Половини екрана — навпаки: зліва червона, справа синя.
                 // На кожному кроці все міняється місцями — як справжня мигалка.
                 val leftFrame = if (swap) RED else BLUE
@@ -132,16 +160,16 @@ class AlertOverlay(private val ctx: Context) {
             }
 
             // Плашка на третині висоти — не закриває підказку повороту Waze угорі й кнопки внизу.
-            val title = (if (type.police) "🚨 " else "⚠ ") + type.title
+            val title = if (weigh) "⚖ ВАГИ" else (if (type.police) "🚨 " else "⚠ ") + type.title
             val pad = 16 * density
             val tw = maxOf(titlePaint.measureText(title), subPaint.measureText(subtitle)) + 2 * pad
             val ph = if (subtitle.isEmpty()) 50 * density else 78 * density
             val top = h * 0.30f
             rect.set(((w - tw) / 2).coerceAtLeast(8 * density), top, ((w + tw) / 2).coerceAtMost(w - 8 * density), top + ph)
-            pill.color = if (type.police) Color.parseColor("#0D2A6B") else AMBER
+            pill.color = when { weigh -> PURPLE; type.police -> Color.parseColor("#0D2A6B"); else -> AMBER }
             pill.alpha = 240
             canvas.drawRoundRect(rect, 20 * density, 20 * density, pill)
-            val tc = if (type.police) Color.WHITE else Color.BLACK
+            val tc = if (type.police || weigh) Color.WHITE else Color.BLACK
             titlePaint.color = tc; subPaint.color = tc
             canvas.drawText(title, rect.centerX() - titlePaint.measureText(title) / 2, rect.top + 34 * density, titlePaint)
             if (subtitle.isNotEmpty()) canvas.drawText(subtitle, rect.centerX() - subPaint.measureText(subtitle) / 2, rect.top + 62 * density, subPaint)
@@ -151,6 +179,7 @@ class AlertOverlay(private val ctx: Context) {
             val RED = Color.parseColor("#E53935")
             val BLUE = Color.parseColor("#1E64FF")
             val AMBER = Color.parseColor("#FFB300")
+            val PURPLE = Color.parseColor("#8E24AA")
         }
     }
 }
