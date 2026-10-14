@@ -14,6 +14,7 @@
 
     <queries>
         <package android:name="com.waze" />
+        <package android:name="com.sixdays.truckerpath" />
         <package android:name="com.google.android.apps.maps" />
         <package android:name="com.google.android.youtube" />
         <package android:name="org.telegram.messenger" />

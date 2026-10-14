@@ -50,6 +50,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -135,7 +136,7 @@ fun HomeScreen(modifier: Modifier, resumeTick: Int) {
     val fine = remember(resumeTick) { hasPerm(ctx, Manifest.permission.ACCESS_FINE_LOCATION) }
     val bg = remember(resumeTick) { Build.VERSION.SDK_INT < 29 || hasPerm(ctx, Manifest.permission.ACCESS_BACKGROUND_LOCATION) }
     val notifOk = remember(resumeTick) { Build.VERSION.SDK_INT < 33 || hasPerm(ctx, Manifest.permission.POST_NOTIFICATIONS) }
-    val wazeInstalled = remember(resumeTick) { ctx.packageManager.getLaunchIntentForPackage("com.waze") != null }
+    val wazeInstalled = remember(resumeTick) { ctx.packageManager.getLaunchIntentForPackage("com.waze") != null || ctx.packageManager.getLaunchIntentForPackage("com.sixdays.truckerpath") != null }
     var update by remember { mutableStateOf(UpdateChecker.cached(Prefs(ctx))) }
     var updateOpen by remember { mutableStateOf(false) }
     update?.let { u -> if (updateOpen) UpdateDialog(u, resumeTick) { updateOpen = false } }
@@ -160,6 +161,42 @@ fun HomeScreen(modifier: Modifier, resumeTick: Int) {
         if (update != null && !updatePromptShown) { updatePromptShown = true; updateOpen = true }
     }
 
+    // «Налаштувати все»: по черзі відкриваємо кожен дозвіл, якого бракує; кожен крок — не більше одного разу.
+    var wizard by rememberSaveable { mutableStateOf(false) }
+    var tried by rememberSaveable { mutableStateOf(setOf<String>()) }
+    LaunchedEffect(resumeTick, wizard) {
+        if (!wizard) return@LaunchedEffect
+        kotlinx.coroutines.delay(600)
+        fun once(step: String, action: () -> Unit): Boolean {
+            if (step in tried) return false
+            tried = tried + step; runCatching(action); return true
+        }
+        val done = when {
+            Build.VERSION.SDK_INT >= 33 && !notifOk && once("notif") { notifLauncher.launch(Manifest.permission.POST_NOTIFICATIONS) } -> false
+            !fine && once("fine") { fineLauncher.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)) } -> false
+            fine && !bg && Build.VERSION.SDK_INT >= 29 && once("bg") {
+                android.widget.Toast.makeText(ctx, "Вибери «Дозволяти завжди»", android.widget.Toast.LENGTH_LONG).show()
+                bgLauncher.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+            } -> false
+            !battery && once("battery") {
+                runCatching {
+                    ctx.startActivity(Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:${ctx.packageName}")))
+                }.onFailure { ctx.startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)) }
+            } -> false
+            !running && once("access") {
+                android.widget.Toast.makeText(ctx, "«Встановлені програми» → TruckBro → увімкни → «Дозволити»", android.widget.Toast.LENGTH_LONG).show()
+                ctx.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+            } -> false
+            else -> true
+        }
+        if (done) {
+            wizard = false
+            android.widget.Toast.makeText(ctx,
+                if (running && fine && bg) "Готово! Усе налаштовано ✓" else "Залишились кроки з червоним знаком — зроби їх кнопками нижче",
+                android.widget.Toast.LENGTH_LONG).show()
+        }
+    }
+
     val ready = running && fine && bg
     LazyColumn(modifier.padding(horizontal = 16.dp), contentPadding = PaddingValues(vertical = 16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -177,6 +214,13 @@ fun HomeScreen(modifier: Modifier, resumeTick: Int) {
                         if (wazeSeen > 0 && android.os.SystemClock.uptimeMillis() - wazeSeen < 30_000) "Waze: бачу ✓" else "Waze: зараз не бачу",
                         color = Color.White, fontSize = 14.sp, modifier = Modifier.padding(top = 6.dp))
                 }
+            }
+        }
+        if (!ready) item {
+            Button(onClick = { tried = emptySet(); wizard = true },
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32), contentColor = Color.White),
+                modifier = Modifier.fillMaxWidth().height(64.dp), shape = RoundedCornerShape(18.dp)) {
+                Text("✅ Налаштувати все", fontSize = 20.sp, fontWeight = FontWeight.Bold)
             }
         }
         nav?.let { n ->
@@ -209,7 +253,7 @@ fun HomeScreen(modifier: Modifier, resumeTick: Int) {
                     OutlinedButton(onClick = {
                         ctx.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${ctx.packageName}")))
                     }, modifier = Modifier.fillMaxWidth()) { Text("Відкрити сторінку програми") }
-                } else Hint("Готово. TruckBro читає тільки Waze і Google Maps.")
+                } else Hint("Готово. TruckBro читає тільки Waze, Trucker Path і Google Maps.")
             }
         }
         item {
@@ -244,7 +288,7 @@ fun HomeScreen(modifier: Modifier, resumeTick: Int) {
         }
         item {
             SectionCard {
-                StepRow(wazeInstalled, "4. Waze маленьким вікном")
+                StepRow(wazeInstalled, "4. Waze або Trucker Path маленьким вікном")
                 Hint(
                     if (!wazeInstalled) "Встанови Waze з Google Play."
                     else "Samsung: відкрий Waze → кнопка «Останні програми» (☰ або ▢) → натисни іконку Waze угорі → «Відкрити у спливаючому вікні». Зменш вікно, потягнувши за кут, але так, щоб картка попередження Waze ще вміщалась. Потім відкривай YouTube — Waze лишиться поверх.\n" +

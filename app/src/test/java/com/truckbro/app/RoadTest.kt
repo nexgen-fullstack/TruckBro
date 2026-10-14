@@ -84,6 +84,8 @@ class RoadTest {
         assertEquals(WeighStatus.OPEN, WeighStatusParser.parse(listOf("Weigh station open", "I-57 N")))
         assertEquals(WeighStatus.CLOSED, WeighStatusParser.parse(listOf("Scales closed")))
         assertNull(WeighStatusParser.parse(listOf("Lane closed", "Store open now")))
+        assertEquals(WeighStatus.CLOSED, WeighStatusParser.parse(listOf("Peotone Weigh Station", "3.2 mi", "Closed"), loose = true))
+        assertNull(WeighStatusParser.parse(listOf("Peotone Weigh Station", "3.2 mi", "Closed")))
     }
 
     /** Пряма лінія на північ із точками кожні ~110 м. */

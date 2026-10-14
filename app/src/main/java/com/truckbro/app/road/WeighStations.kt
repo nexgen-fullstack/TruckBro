@@ -122,11 +122,21 @@ object WeighStatusParser {
     private val OPEN = Regex("\\bopen(ed)?\\b|відкрит", RegexOption.IGNORE_CASE)
     private val CLOSED = Regex("\\bclosed\\b|закрит", RegexOption.IGNORE_CASE)
 
-    fun parse(texts: List<String>): WeighStatus? {
-        for (t in texts) {
+    /**
+     * [loose] — для Trucker Path: там назва станції і статус («Open» / «Closed») — окремі написи поруч,
+     * тож шукаємо статус у кількох сусідніх рядках після назви.
+     */
+    fun parse(texts: List<String>, loose: Boolean = false): WeighStatus? {
+        for ((i, t) in texts.withIndex()) {
             if (t.length > 160 || !STATION.containsMatchIn(t)) continue
             if (CLOSED.containsMatchIn(t)) return WeighStatus.CLOSED
             if (OPEN.containsMatchIn(t)) return WeighStatus.OPEN
+            if (!loose) continue
+            for (n in texts.subList(i + 1, minOf(texts.size, i + 5))) {
+                if (n.length > 30) continue
+                if (CLOSED.containsMatchIn(n)) return WeighStatus.CLOSED
+                if (OPEN.containsMatchIn(n)) return WeighStatus.OPEN
+            }
         }
         return null
     }

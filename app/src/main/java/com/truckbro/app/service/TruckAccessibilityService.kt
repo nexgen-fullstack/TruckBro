@@ -68,7 +68,10 @@ class TruckAccessibilityService : AccessibilityService(), LocationListener {
         const val GMAPS = "com.google.android.apps.maps"
         /** Маркер тестового екрана в самій програмі: його текст читається як екран Waze. */
         const val DEMO_NAV_MARKER = "TRUCKBRO_DEMO_NAV"
-        private val NAV_APPS = setOf(WAZE, GMAPS)
+        const val TRUCKER_PATH = "com.sixdays.truckerpath"
+        private val NAV_APPS = setOf(WAZE, GMAPS, TRUCKER_PATH)
+        /** Навігація, яку читаємо: Waze, Google Maps, Trucker Path (будь-яка його версія). */
+        fun isNav(pkg: String) = pkg in NAV_APPS || pkg.contains("truckerpath", ignoreCase = true)
         private const val CHANNEL = "truckbro_alerts"
 
         @Volatile
@@ -142,7 +145,7 @@ class TruckAccessibilityService : AccessibilityService(), LocationListener {
 
     override fun onAccessibilityEvent(e: AccessibilityEvent?) {
         val pkg = e?.packageName?.toString() ?: return
-        if (pkg !in NAV_APPS && pkg != packageName) return
+        if (!isNav(pkg) && pkg != packageName) return
         val now = SystemClock.uptimeMillis()
         if (firstPendingAt == 0L) firstPendingAt = now
         handler.removeCallbacks(scanRunnable)
@@ -168,7 +171,7 @@ class TruckAccessibilityService : AccessibilityService(), LocationListener {
             if (isDemo && items.none { it.text == DEMO_NAV_MARKER }) continue
             if (!isDemo) {
                 lastWazeVisible = now; DriveState._wazeSeenAt.value = now
-                com.truckbro.app.road.WeighStatusParser.parse(items.map { it.text })?.let { onWazeWeighStatus(it) }
+                com.truckbro.app.road.WeighStatusParser.parse(items.map { it.text }, loose = pkg != WAZE && pkg != GMAPS)?.let { onWazeWeighStatus(it) }
             }
             val sightings = HazardParser.parse(items.filter { it.text != DEMO_NAV_MARKER })
             if (com.truckbro.app.BuildConfig.DEBUG && isDemo) Log.d(TAG, "scan ${items.map { it.text }} -> $sightings")
@@ -188,7 +191,7 @@ class TruckAccessibilityService : AccessibilityService(), LocationListener {
         val rect = android.graphics.Rect()
         for (root in roots) {
             val pkg = root.packageName?.toString() ?: continue
-            if (pkg !in NAV_APPS && pkg != packageName) continue
+            if (!isNav(pkg) && pkg != packageName) continue
             walk(root, out.getOrPut(pkg) { mutableListOf() }, 0, rect)
         }
         return out
